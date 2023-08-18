@@ -1,0 +1,65 @@
+---
+version: 2.1
+
+orbs:
+  orb: sulaiman-coder/orb@0.1.3
+  # khulnasoft-installer: khulnasoftproj/khulnasoft-installer@0.1.0
+
+workflows:
+  build:
+    jobs:
+      - orb/pack:
+          name: pack
+          filters:
+            tags:
+              only: /.*/
+      - orb/test:
+          name: test
+          context: circleci-orb-khulnasoft
+          workflows: ls tests/*
+          requires:
+            - pack
+          filters:
+            tags:
+              only: /.*/
+
+      - publish-dev:
+          context: circleci-orb-khulnasoft
+          requires:
+            - pack
+            - test
+
+      - publish:
+          context: circleci-orb-khulnasoft
+          requires:
+            - pack
+            - test
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+executors:
+  circleci:
+    docker:
+      - image: circleci/circleci-cli:0.1.28811-alpine
+commands:
+  pack:
+    steps:
+      - run:
+          command: circleci orb pack src --skip-update-check > orb.yml
+jobs:
+  publish-dev:
+    executor: circleci
+    steps:
+      - checkout
+      - pack
+      - orb/publish-dev:
+          orb_path: khulnasoftproj/khulnasoft
+  publish:
+    executor: circleci
+    steps:
+      - checkout
+      - pack
+      - orb/publish:
+          orb_path: khulnasoftproj/khulnasoft

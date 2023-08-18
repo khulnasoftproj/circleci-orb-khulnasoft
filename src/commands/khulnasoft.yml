@@ -1,0 +1,191 @@
+description: >
+  Install khulnasoft and run khulnasoft install.
+
+  1. Install khulnasoft
+  2. Add KHULNASOFT_ROOT_DIR/bin to PATH via $BASH_ENV
+  3. On Windows, add KHULNASOFT_ROOT_DIR/bat to PATH via $BASH_ENV
+  4. (Optional) Run "khulnasoft policy allow"
+  5. (Optional) Run "khulnasoft install"
+parameters:
+  khulnasoft_version:
+    type: string
+    description: >
+      khulnasoft version.
+  enable_khulnasoft_install:
+    type: boolean
+    default: true
+    description: >
+      if this is "false", the command "khulnasoft install" is skipped
+  khulnasoft_log_level:
+    type: string
+    default: ""
+    description: >
+      khulnasoft's "--log-level" option
+  khulnasoft_config:
+    type: string
+    default: ""
+    description: >
+      khulnasoft's "--config" option
+  khulnasoft_only_link:
+    type: boolean
+    default: true
+    description: >
+      khulnasoft i's "--only-link" option
+  khulnasoft_all:
+    type: boolean
+    default: false
+    description: >
+      khulnasoft i's "--all" option
+  khulnasoft_tags:
+    type: string
+    default: ""
+    description: >
+      khulnasoft i's "--tags" option
+  khulnasoft_exclude_tags:
+    type: string
+    default: ""
+    description: >
+      khulnasoft i's "--exclude-tags" option
+
+  policy_allow:
+    type: string
+    default: ""
+    description: >
+      If this is "true", "khulnasoft policy allow" is run without any argument.
+      If this is empty (default), "khulnasoft policy allow" isn't run.
+      If this isn't "true", "khulnasoft policy allow << parameters.policy_allow >>" is run
+
+  working_directory:
+    type: string
+    default: ""
+    description: >
+      working directory where "khulnasoft install" is run
+steps:
+  - run:
+      name: Install khulnasoft
+      environment:
+        KHULNASOFT_VERSION: << parameters.khulnasoft_version >>
+        POLICY_ALLOW: << parameters.policy_allow >>
+        ENABLE_KHULNASOFT_INSTALL: << parameters.enable_khulnasoft_install >>
+        WORKING_DIRECTORY: << parameters.working_directory >>
+        LOG_LEVEL: << parameters.khulnasoft_log_level >>
+        CONFIG: << parameters.khulnasoft_config >>
+        ONLY_LINK: << parameters.khulnasoft_only_link >>
+        ALL: << parameters.khulnasoft_all >>
+        TAGS: << parameters.khulnasoft_tags >>
+        EXCLUDE_TAGS: << parameters.khulnasoft_exclude_tags >>
+      command: |
+        set -euo pipefail
+        
+        uname_os() {
+          local os
+          os=$(uname -s | tr '[:upper:]' '[:lower:]')
+          case "$os" in
+            cygwin_nt*) os="windows" ;;
+            mingw*) os="windows" ;;
+            msys_nt*) os="windows" ;;
+          esac
+          echo "$os"
+        }
+        
+        uname_arch() {
+          local arch
+          arch=$(uname -m)
+          case $arch in
+            x86_64) arch="amd64" ;;
+            aarch64) arch="arm64" ;;
+          esac
+          echo ${arch}
+        }
+
+        is_true() {
+          val=$1
+          [ "$val" = true ] || [ "$val" = True ] || [ "$val" = y ] || [ "$val" = yes ] || [ "$val" = on ] || [ "$val" = 1 ]
+        }
+
+        if [ -n "$LOG_LEVEL" ]; then
+          export "KHULNASOFT_LOG_LEVEL=$LOG_LEVEL"
+        fi
+        if [ -n "$CONFIG" ]; then
+          export "KHULNASOFT_CONFIG=$CONFIG"
+        fi
+        opts=""
+        if is_true "$ONLY_LINK"; then
+          opts=-l
+        fi
+        if is_true "$ALL"; then
+          opts="-a $opts"
+        fi
+        if [ -n "$TAGS" ]; then
+          opts="-t \"$TAGS\" $opts"
+        fi
+        if [ -n "$EXCLUDE_TAGS" ]; then
+          opts="-exclude-tags \"$EXCLUDE_TAGS\" $opts"
+        fi
+        
+        OS="$(uname_os)"
+        ARCH="$(uname_arch)"
+        
+        install_path=${KHULNASOFT_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/khulnasoftproj-khulnasoft}/bin/khulnasoft
+        if [ "$OS" = windows ]; then
+          install_path=${KHULNASOFT_ROOT_DIR:-$HOME/AppData/Local/khulnasoftproj-khulnasoft}/bin/khulnasoft.exe
+        fi
+        
+        bootstrap_version=v2.9.1
+        checksums="0ad1ec9b0f9250039f8c5c90a7e73a0b2c55ac904c5904742d47805d1c3a2654  khulnasoft_linux_arm64.tar.gz
+        674866ea9d925bb033d0fceaa1fd3a0890c84f035db2a6f00782b8cd0638cea2  khulnasoft_windows_arm64.tar.gz
+        a87952cc7b3520346aa0887476465d03ca6e57c2f06bfa116707cc3bf50b3eaa  khulnasoft_darwin_arm64.tar.gz
+        c6bdc60187b7e5a703ab03d47e310aef91c776cefc0c136ecc9b9a27be258051  khulnasoft_linux_amd64.tar.gz
+        e69869d5de833fe8de6b196e592b7f10ee47c24316cd440e3c2d6506114fc2f0  khulnasoft_darwin_amd64.tar.gz
+        f58824ca851f023494e824c43b1516da5296235bd376446f13353fbbfa1b4f14  khulnasoft_windows_amd64.tar.gz"
+        
+        filename=khulnasoft_${OS}_${ARCH}.tar.gz
+        URL=https://github.com/khulnasoftproj/khulnasoft/releases/download/$bootstrap_version/$filename
+        
+        tempdir=$(mktemp -d)
+        echo "===> Installing khulnasoft $bootstrap_version for bootstrapping..." >&2
+        echo "===> Downloading $URL ..." >&2
+        curl --fail -L "$URL" -o "$tempdir/$filename"
+        
+        pwd=$PWD
+        cd "$tempdir"
+        
+        echo "===> Verifying checksum of khulnasoft $bootstrap_version ..." >&2
+        if command -v sha256sum > /dev/null 2>&1; then
+          echo "$checksums" | grep "$filename" | sha256sum -c
+        elif command -v shasum > /dev/null 2>&1; then
+          echo "$checksums" | grep "$filename" | shasum -a 256 -c
+        else
+        	echo "Skipped checksum verification of khulnasoft $bootstrap_version, because both sha256sum and shasum aren't found" >&2
+        fi
+        
+        tar xvzf "$filename" > /dev/null
+        chmod a+x khulnasoft
+
+        export "PATH=$(./khulnasoft root-dir)/bin::$PATH"
+        echo "export \"PATH=$(./khulnasoft root-dir)/bin:$PATH\"" >> "$BASH_ENV"
+        if [ "$OS" = windows ]; then
+          export "PATH=$(./khulnasoft root-dir)/bat:$PATH"
+          echo "export \"PATH=$(./khulnasoft root-dir)/bat:$PATH\"" >> "$BASH_ENV"
+        fi
+
+        echo "===> $tempdir/khulnasoft update-khulnasoft $KHULNASOFT_VERSION" >&2
+        ./khulnasoft update-khulnasoft "$KHULNASOFT_VERSION"
+        
+        cd "$pwd/$WORKING_DIRECTORY"
+        rm -R "$tempdir"
+
+        if [ "$POLICY_ALLOW" = true ]; then
+          echo "===> khulnasoft policy allow" >&2
+          khulnasoft policy allow
+          exit 0
+        fi
+        if [ -n "$POLICY_ALLOW" ]; then
+          echo '===> khulnasoft policy allow $POLICY_ALLOW' >&2
+          khulnasoft policy allow "$POLICY_ALLOW"
+        fi
+
+        if is_true "$ENABLE_KHULNASOFT_INSTALL"; then
+          echo "khulnasoft i $opts" >&2
+          khulnasoft i $opts
+        fi

@@ -1,0 +1,7 @@
+version: 2.1
+
+description: >
+  Install khulnasoft and run `khulnasoft install`.
+
+display:
+  source_url: "https://github.com/khulnasoftproj/circleci-orb-khulnasoft"
