@@ -2,8 +2,8 @@
 version: 2.1
 
 orbs:
-  orb: khulnasoftproj/khulnasoft-installer@0.1.0
-  # khulnasoft-installer: khulnasoftproj/khulnasoft-installer@0.1.0
+  # orb: khulnasoftproj/khulnasoft-installer@0.1.0
+  khulnasoft-installer: khulnasoftproj/khulnasoft-installer@0.1.0
 
 workflows:
   build:
